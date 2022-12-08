@@ -1,3 +1,4 @@
+cargo:rustc-cfg=osslconf="OPENSSL_NO_IDEA"
 cargo:rustc-cfg=osslconf="OPENSSL_NO_SSL3_METHOD"
 cargo:rustc-cfg=ossl101
 cargo:rustc-cfg=ossl102

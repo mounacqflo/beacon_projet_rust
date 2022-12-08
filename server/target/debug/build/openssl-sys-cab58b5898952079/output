@@ -39,7 +39,6 @@ cargo:rerun-if-env-changed=OPENSSL_STATIC
 cargo:rerun-if-env-changed=OPENSSL_DYNAMIC
 cargo:rerun-if-env-changed=PKG_CONFIG_ALL_STATIC
 cargo:rerun-if-env-changed=PKG_CONFIG_ALL_DYNAMIC
-cargo:rustc-link-search=native=/home/linuxbrew/.linuxbrew/Cellar/openssl@1.1/1.1.1s/lib
 cargo:rustc-link-lib=ssl
 cargo:rustc-link-lib=crypto
 cargo:rerun-if-env-changed=PKG_CONFIG_x86_64-unknown-linux-gnu
@@ -86,10 +85,11 @@ cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
 CRATE_CC_NO_DEFAULTS = None
 DEBUG = Some("true")
 CARGO_CFG_TARGET_FEATURE = Some("fxsr,sse,sse2")
-running: "cc" "-O0" "-ffunction-sections" "-fdata-sections" "-fPIC" "-gdwarf-4" "-fno-omit-frame-pointer" "-m64" "-I" "/home/linuxbrew/.linuxbrew/Cellar/openssl@1.1/1.1.1s/include" "-Wall" "-Wextra" "-E" "build/expando.c"
+running: "cc" "-O0" "-ffunction-sections" "-fdata-sections" "-fPIC" "-gdwarf-4" "-fno-omit-frame-pointer" "-m64" "-I" "/usr/include" "-Wall" "-Wextra" "-E" "build/expando.c"
 exit status: 0
+cargo:rustc-cfg=osslconf="OPENSSL_NO_IDEA"
 cargo:rustc-cfg=osslconf="OPENSSL_NO_SSL3_METHOD"
-cargo:conf=OPENSSL_NO_SSL3_METHOD
+cargo:conf=OPENSSL_NO_IDEA,OPENSSL_NO_SSL3_METHOD
 cargo:rustc-cfg=ossl101
 cargo:rustc-cfg=ossl102
 cargo:rustc-cfg=ossl102f
@@ -101,6 +101,6 @@ cargo:rustc-cfg=ossl110h
 cargo:rustc-cfg=ossl111
 cargo:rustc-cfg=ossl111b
 cargo:rustc-cfg=ossl111c
-cargo:version_number=1010113f
+cargo:version_number=1010106f
 cargo:version=111
-cargo:include=/home/linuxbrew/.linuxbrew/Cellar/openssl@1.1/1.1.1s/include
+cargo:include=/usr/include
