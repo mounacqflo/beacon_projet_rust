@@ -225,8 +225,6 @@ async fn main() {
 
     send_ordre(&server, OrdreType::Vitesse, vec![String::from("1")]).await;
 
-    
-
     run_on_boot(&server).await;
 
    
