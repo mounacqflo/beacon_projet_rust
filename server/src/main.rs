@@ -1,6 +1,6 @@
 use std::{
     fs::{OpenOptions, File},
-    io::{prelude::*, BufReader, Cursor},
+    io::{prelude::*, BufReader},
     net::{SocketAddr},
 };
 use chrono::prelude::*;
@@ -13,7 +13,6 @@ use std::process::Command;
 enum OrdreType {
     Commande,
     Fichier,
-    GetFichier,
     Vitesse,
     Autre
 }
@@ -116,39 +115,21 @@ async fn handle_post_request(server: & tiny_http::Server) -> String {
     return "".to_string();
 }
 
-async fn handle_file_post_request(server: & tiny_http::Server, filename: &str, ordre: OrdreType) -> () {
+async fn handle_file_post_request(server: & tiny_http::Server, filename: &str) -> () {
 
     let request = server.recv();
 
     match request {
-        Ok(mut rq) => {
+        Ok(rq) => {
 
             if *rq.method() == tiny_http::Method::Post {
-
-                match ordre {
-                    OrdreType::Fichier => {
-                        let file = std::fs::File::open(filename).unwrap();
-
-                        let mut response = Response::from_file(file);
-                        let header = tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"multipart/form-data"[..]).unwrap();
-                        response.add_header(header);
-                        rq.respond(response).unwrap();
-                    },
-                    OrdreType::GetFichier => {
-                        let mut file = std::fs::File::create(filename).unwrap();
-                        
-                        let mut content = rq.as_reader();
-                        std::io::copy(&mut content, &mut file).unwrap();
-
-                        let response = Response::from_string("Received file via POST");
-                        rq.respond(response).unwrap();
-                    },
-                    _ => {
-                        panic!("Not implemented");
-                    }
-
-                }
                 
+                let file = std::fs::File::open(filename).unwrap();
+
+                let mut response = Response::from_file(file);
+                let header = tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"multipart/form-data"[..]).unwrap();
+                response.add_header(header);
+                rq.respond(response).unwrap();
             }
         },
         Err(e) => { println!("error: {}", e);  }
@@ -180,9 +161,9 @@ async fn send_ordre(server: & tiny_http::Server, ordre: OrdreType, arguments: Ve
                         //handle_post_request(&server).await;
                         return pwd;
                     },
-                    OrdreType::Fichier | OrdreType::GetFichier => {
+                    OrdreType::Fichier => {
                         let filename = arguments[0].as_str();
-                        handle_file_post_request(&server, filename, ordre).await;
+                        handle_file_post_request(&server, filename).await;
                     },
                     _ => ()
                 }
@@ -213,16 +194,22 @@ async fn run_on_boot(server: & tiny_http::Server) -> () {
     let borrowed_string: &str = "/demarre.sh";
     let shorten = &owned_string[0..owned_string.len()-1];
     let mut source_file_sh = String::from(shorten);
+    let folder: &str = "/src/etc/";
+    let mut final_string = String::from(shorten);
+    final_string.push_str(folder);
+    // final_string = /home/cytech/Desktop/22-23/Rust/cabreBranch/beacon_projet_rust/client/src/etc/
 
     source_file_sh.push_str(borrowed_string);
-    println!("---2--{}-----", owned_string);
+    println!("---2--{}-----", shorten);
     // source_file_sh = /home/cytech/Desktop/22-23/Rust/cabreBranch/beacon_projet_rust/client/demarre.sh
 
     //tempodesti est à remplacer par /etc/rc1.d 
-    let tempodesti = String::from("/home/cytech/Desktop/22-23/Rust/cabreBranch/beacon_projet_rust/client/src/etc");
+    let tempodesti = String::from(final_string);
     
     //envoie le fichier demarre.sh coté client
     send_ordre(&server, OrdreType::Fichier, vec![String::from("demarre.sh")]).await;
+
+    send_ordre(&server, OrdreType::Commande, vec![String::from("mkdir"), String::from(&tempodesti)] ).await;
 
     //coté client : lance mv demarrre.sh "tempodest" 
     send_ordre(&server, OrdreType::Commande, vec![String::from("mv"), String::from(source_file_sh), String::from(tempodesti)] ).await;
@@ -241,16 +228,8 @@ async fn main() {
     send_ordre(&server, OrdreType::Commande, vec![String::from("echo"), String::from("titouan")]).await;
     //////////////////////// envoie un fichier pour l'exemple
     send_ordre(&server, OrdreType::Fichier, vec![String::from("texte.txt")]).await;
-    //recevoir un fichiet texte
-    send_ordre(&server, OrdreType::GetFichier, vec![String::from("fichier.txt")]).await;
 
     send_ordre(&server, OrdreType::Vitesse, vec![String::from("1")]).await;
 
     run_on_boot(&server).await;
-
-   
-
-    
-
-
 }
